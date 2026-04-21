@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Tasks</title>
+<style>
+
+/* ── TOKENS ── */
+:root {
+  --bg:        #0f1117;
+  --surface:   #181c27;
+  --surface2:  #1e2333;
+  --surface3:  #252b3b;
+  --border:    #2a3045;
+  --border2:   #333d55;
+  --text:      #e8eaf0;
+  --text2:     #8b92a8;
+  --text3:     #555f7a;
+  --green:     #10b981;
+  --green-dim: #0d9268;
+  --green-bg:  rgba(16,185,129,0.12);
+  --green-glow:rgba(16,185,129,0.25);
+  --red:       #ef4444;
+  --red-bg:    rgba(239,68,68,0.12);
+  --amber:     #fbbf24;
+  --amber-bg:  rgba(245,158,11,0.12);
+  --radius:    10px;
+  --radius-sm: 6px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --drawer-w: 260px;
+  --header-h: 56px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ══ LAYOUT ══ */
+#app { display: flex; flex-direction: column; height: 100%; height: 100dvh; }
+
+/* ── HEADER ── */
+#header {
+  height: var(--header-h); min-height: var(--header-h);
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  z-index: 50; position: relative;
+}
+#hamburger {
+  width: 36px; height: 36px; display: flex; flex-direction: column;
+  justify-content: center; gap: 5px; cursor: pointer; flex-shrink: 0;
+  padding: 6px; border-radius: var(--radius-sm); transition: background 0.15s;
+}
+#hamburger:hover { background: var(--surface3); }
+#hamburger span {
+  display: block; height: 1.5px; background: var(--text2); border-radius: 2px;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1); transform-origin: center;
+}
+body.drawer-open #hamburger span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+body.drawer-open #hamburger span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+body.drawer-open #hamburger span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+#header-title {
+  font-size: 0.95em; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text); text-transform: uppercase; flex: 1;
+}
+#header-actions { display: flex; gap: 6px; align-items: center; }
+.hdr-btn {
+  background: var(--surface3); border: 1px solid var(--border); color: var(--text2);
+  font-size: 0.75em; padding: 5px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; font-family: var(--font); transition: all 0.15s; white-space: nowrap;
+}
+.hdr-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* sync status dot */
+#syncDot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text3); flex-shrink: 0;
+  transition: background 0.3s;
+  cursor: pointer; title: "Sync status";
+}
+#syncDot.synced  { background: var(--green); }
+#syncDot.syncing { background: var(--amber); animation: pulse 1s infinite; }
+#syncDot.error   { background: var(--red); }
+#syncDot.offline { background: var(--text3); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── TODAY PANEL ── */
+#todayPanel {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 16px; display: flex; align-items: center;
+  gap: 10px; flex-wrap: wrap; flex-shrink: 0; position: relative;
+}
+#todayPanel::before {
+  content:''; position: absolute; left:0; top:0; bottom:0;
+  width: 2px; background: var(--green);
+}
+#todayMeta { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
+#todayMeta .label {
+  font-size: 0.7em; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--green);
+}
+#todayCount {
+  font-size: 1.3em; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+#todayList { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.today-chip {
+  background: var(--green-bg); border: 1px solid var(--green-dim); color: var(--green);
+  font-size: 0.78em; font-weight: 500; padding: 4px 10px; border-radius: 20px;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.today-chip:hover { background: var(--green-glow); }
+#showDoneWrap { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+#showDoneWrap label { font-size: 0.72em; color: var(--text3); cursor: pointer; user-select: none; }
+.toggle { position: relative; width: 32px; height: 18px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0; background: var(--surface3);
+  border: 1px solid var(--border2); border-radius: 9px; cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.toggle input:checked ~ .toggle-track { background: var(--green-bg); border-color: var(--green); }
+.toggle-thumb {
+  position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+  background: var(--text3); border-radius: 50%;
+  transition: transform 0.2s, background 0.2s; pointer-events: none;
+}
+.toggle input:checked ~ .toggle-track .toggle-thumb { transform: translateX(14px); background: var(--green); }
+
+/* ── BODY ── */
+#body { display: flex; flex: 1; overflow: hidden; position: relative; }
+#drawerOverlay {
+  display: none; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 40; backdrop-filter: blur(2px);
+}
+body.drawer-open #drawerOverlay { display: block; }
+
+/* ── DRAWER ── */
+#drawer {
+  position: absolute; top: 0; left: 0; width: var(--drawer-w); height: 100%;
+  background: var(--surface); border-right: 1px solid var(--border);
+  z-index: 45; transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+body.drawer-open #drawer { transform: translateX(0); }
+.drawer-section-label {
+  font-size: 0.65em; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text3); padding: 20px 18px 8px;
+}
+.drawer-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+  cursor: pointer; border-left: 2px solid transparent; transition: all 0.15s;
+  color: var(--text2); font-size: 0.9em; font-weight: 500;
+}
+.drawer-item:hover { background: var(--surface2); color: var(--text); }
+.drawer-item.active { border-left-color: var(--green); background: var(--green-bg); color: var(--green); }
+.drawer-item .di-icon { font-size: 1em; width: 18px; text-align: center; }
+.drawer-item .di-badge {
+  margin-left: auto; background: var(--surface3); color: var(--text3);
+  font-size: 0.7em; padding: 1px 6px; border-radius: 10px; font-variant-numeric: tabular-nums;
+}
+.drawer-item.active .di-badge { background: var(--green-bg); color: var(--green); }
+.drawer-divider { height: 1px; background: var(--border); margin: 8px 0; }
+.drawer-footer { margin-top: auto; padding: 16px 18px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.drawer-footer-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+  font-size: 0.8em; padding: 8px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; font-family: var(--font); text-align: left;
+  transition: all 0.15s; display: flex; align-items: center; gap: 8px;
+}
+.drawer-footer-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* ── CONTENT ── */
+#content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 16px 40px; -webkit-overflow-scrolling: touch; }
+.section { display: none; }
+.section.active { display: block; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-title { font-size: 0.68em; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+.add-btn {
+  display: flex; align-items: center; gap: 6px; background: var(--surface2);
+  border: 1px solid var(--border); color: var(--text2); font-size: 0.8em;
+  padding: 7px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-family: var(--font); transition: all 0.15s;
+}
+.add-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+
+/* ── TASK ROWS ── */
+.project-group { margin-bottom: 12px; }
+.task-row {
+  display: grid; align-items: center; background: var(--surface2);
+  border-bottom: 1px solid var(--border); transition: background 0.12s; min-height: 52px;
+}
+.task-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.task-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius) var(--radius); }
+.task-row:only-child { border-radius: var(--radius); }
+.task-row:hover { background: var(--surface3); }
+.task-row.control-row { grid-template-columns: 32px 36px 1fr auto auto 36px; }
+.task-row.subtask-row { grid-template-columns: 32px 36px 1fr auto 36px; }
+.task-row.done-row { opacity: 0.38; }
+.task-row.done-row .task-name { text-decoration: line-through; }
+.task-row.hidden-done { display: none; }
+.task-row.today-hl { background: rgba(16,185,129,0.07); }
+.task-row.dragging { opacity: 0.3; }
+.task-row.drag-over { box-shadow: inset 0 2px 0 var(--green); }
+
+.project-header {
+  display: grid; grid-template-columns: 32px 36px 1fr auto auto 36px;
+  align-items: center; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius) var(--radius) 0 0; min-height: 48px; position: relative;
+}
+.project-header::before {
+  content:''; position: absolute; left:0; top:0; bottom:0;
+  width: 2px; background: var(--green); border-radius: 2px 0 0 2px;
+}
+.project-subtasks { border: 1px solid var(--border2); border-top: none; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+.project-subtasks.collapsed { display: none; }
+.project-header.solo { border-radius: var(--radius); }
+
+.cell-drag { display: flex; align-items: center; justify-content: center; cursor: grab; color: var(--text3); font-size: 1em; height: 100%; user-select: none; padding: 0 4px; }
+.cell-drag:active { cursor: grabbing; }
+.cell-check { display: flex; align-items: center; justify-content: center; height: 100%; }
+.task-check { display: none; }
+.check-visual {
+  width: 18px; height: 18px; border: 1.5px solid var(--border2); border-radius: 50%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.check-visual:hover { border-color: var(--green); }
+.task-check:checked + .check-visual { background: var(--green); border-color: var(--green); }
+.task-check:checked + .check-visual::after {
+  content:''; display: block; width: 5px; height: 8px;
+  border: 1.5px solid #000; border-top: none; border-left: none;
+  transform: rotate(45deg) translateY(-1px);
+}
+.cell-name { padding: 12px 8px 12px 0; min-width: 0; }
+.task-name { font-size: 0.92em; color: var(--text); outline: none; word-break: break-word; line-height: 1.4; }
+.task-name:empty:before { content: attr(data-placeholder); color: var(--text3); pointer-events: none; }
+.cell-source { padding: 0 8px; font-size: 0.72em; color: var(--text3); white-space: nowrap; }
+.cell-status { padding: 0 8px; }
+.badge {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
+  font-size: 0.72em; font-weight: 600; cursor: pointer; user-select: none;
+  white-space: nowrap; border: 1px solid transparent; transition: all 0.15s; font-family: var(--font);
+}
+.badge-Next    { background: rgba(59,130,246,0.12); color: #60a5fa; border-color: rgba(59,130,246,0.25); }
+.badge-Today   { background: var(--green-bg); color: var(--green); border-color: rgba(16,185,129,0.3); }
+.badge-Waiting { background: var(--amber-bg); color: var(--amber); border-color: rgba(245,158,11,0.25); }
+.badge-Done    { background: var(--surface3); color: var(--text3); border-color: var(--border); }
+.badge:hover { filter: brightness(1.15); }
+.cell-del { display: flex; align-items: center; justify-content: center; height: 100%; }
+.del-btn {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--text3); font-size: 0.85em;
+  cursor: pointer; border-radius: var(--radius-sm); transition: all 0.15s; font-family: var(--font);
+}
+.del-btn:hover { background: var(--red-bg); color: var(--red); }
+.act-cell { white-space: nowrap; text-align: right; }
+.cell-proj-name { padding: 12px 8px 12px 0; display: flex; align-items: center; gap: 8px; }
+.proj-name-text {
+  font-size: 0.8em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text); outline: none; flex: 1; min-width: 0; word-break: break-word;
+}
+.collapse-btn {
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--green); font-size: 0.7em;
+  cursor: pointer; flex-shrink: 0; transition: transform 0.2s; font-family: var(--font);
+}
+.collapse-btn.collapsed { transform: rotate(-90deg); }
+.add-sub-btn {
+  background: none; border: 1px solid var(--border2); color: var(--text3);
+  font-size: 0.68em; padding: 2px 7px; border-radius: 20px; cursor: pointer;
+  font-family: var(--font); transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+}
+.add-sub-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+.subtask-row .cell-name { display: flex; align-items: flex-start; padding-left: 12px; }
+.subtask-row .cell-name::before {
+  content:''; display: inline-block; width: 12px; height: 12px;
+  border-left: 1.5px solid var(--border2); border-bottom: 1.5px solid var(--border2);
+  border-radius: 0 0 0 4px; margin-right: 8px; margin-bottom: -2px;
+  flex-shrink: 0; vertical-align: middle;
+}
+.subtask-row .task-name { flex: 1; }
+.ref-row {
+  display: grid; grid-template-columns: 32px 1fr 1fr 36px;
+  align-items: center; background: var(--surface2); border-bottom: 1px solid var(--border);
+  min-height: 52px; transition: background 0.12s;
+}
+.ref-row:hover { background: var(--surface3); }
+.ref-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.ref-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius) var(--radius); }
+.ref-row:only-child { border-radius: var(--radius); }
+.ref-cell { padding: 12px 8px; font-size: 0.9em; color: var(--text); outline: none; word-break: break-word; }
+.ref-cell:focus { background: var(--surface3); }
+.ref-cell.notes { color: var(--text2); font-size: 0.85em; }
+.ref-cell:empty:before { content: attr(data-placeholder); color: var(--text3); pointer-events: none; }
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text3); font-size: 0.85em; }
+.empty-state .em-icon { font-size: 2em; margin-bottom: 10px; }
+.task-row.today-hl { background: rgba(16,185,129,0.07); }
+
+/* ══ SETTINGS MODAL ══ */
+#settingsOverlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 200;
+  backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+#settingsOverlay.open { display: flex; }
+#settingsModal {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 14px; padding: 28px; width: min(480px, 92vw);
+  display: flex; flex-direction: column; gap: 20px;
+}
+#settingsModal h2 { font-size: 1em; font-weight: 700; color: var(--text); }
+.settings-desc { font-size: 0.82em; color: var(--text2); line-height: 1.6; }
+.settings-desc a { color: var(--green); text-decoration: none; }
+.settings-desc a:hover { text-decoration: underline; }
+.settings-field { display: flex; flex-direction: column; gap: 6px; }
+.settings-field label { font-size: 0.75em; font-weight: 600; color: var(--text2); letter-spacing: 0.05em; text-transform: uppercase; }
+.settings-input {
+  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+  font-size: 0.82em; padding: 10px 12px; border-radius: var(--radius-sm);
+  font-family: var(--font-mono, monospace); outline: none; transition: border-color 0.15s;
+  width: 100%;
+}
+.settings-input:focus { border-color: var(--green); }
+.settings-input::placeholder { color: var(--text3); }
+.settings-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.settings-btn {
+  flex: 1; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 0.85em;
+  font-weight: 600; cursor: pointer; font-family: var(--font); border: 1px solid var(--border2);
+  transition: all 0.15s; background: var(--surface2); color: var(--text2);
+}
+.settings-btn:hover { border-color: var(--green); color: var(--green); }
+.settings-btn.primary { background: var(--green); border-color: var(--green); color: #000; }
+.settings-btn.primary:hover { background: var(--green-dim); }
+.settings-btn.danger { color: var(--red); }
+.settings-btn.danger:hover { border-color: var(--red); background: var(--red-bg); }
+.settings-status {
+  font-size: 0.8em; padding: 8px 12px; border-radius: var(--radius-sm);
+  display: none; align-items: center; gap: 8px;
+}
+.settings-status.show { display: flex; }
+.settings-status.ok  { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+.settings-status.err { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(239,68,68,0.3); }
+
+/* ── RESPONSIVE ── */
+@media (min-width: 768px) {
+  #drawer { position: relative; transform: none !important; flex-shrink: 0; }
+  #drawerOverlay { display: none !important; }
+  #hamburger { display: none; }
+  #content { padding: 24px 24px 60px; }
+}
+@media (max-width: 480px) {
+  .cell-source { display: none; }
+  .control-row { grid-template-columns: 32px 36px 1fr auto 36px; }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div id="hamburger" onclick="toggleDrawer()"><span></span><span></span><span></span></div>
+    <div id="header-title">Tasks</div>
+    <div id="header-actions">
+      <div id="syncDot" class="offline" onclick="openSettings()" title="Sync status — click to open settings"></div>
+      <button class="hdr-btn" onclick="syncNow()">↻ Sync</button>
+      <button class="hdr-btn" onclick="openSettings()">⚙</button>
+    </div>
+  </div>
+
+  <!-- TODAY PANEL -->
+  <div id="todayPanel">
+    <div id="todayMeta">
+      <span class="label">Today</span>
+      <span id="todayCount">0</span>
+    </div>
+    <div id="todayList"></div>
+    <div id="showDoneWrap">
+      <label class="toggle">
+        <input type="checkbox" id="showDoneChk" onchange="toggleShowDone()">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+      <label for="showDoneChk">Show done</label>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div id="body">
+    <div id="drawerOverlay" onclick="closeDrawer()"></div>
+
+    <!-- DRAWER -->
+    <div id="drawer">
+      <div class="drawer-section-label">Workspace</div>
+      <div class="drawer-item active" data-section="control" onclick="switchSection('control',this)">
+        <span class="di-icon">◈</span> Control
+        <span class="di-badge" id="db-control">0</span>
+      </div>
+      <div class="drawer-item" data-section="projects" onclick="switchSection('projects',this)">
+        <span class="di-icon">⬡</span> Projects
+        <span class="di-badge" id="db-projects">0</span>
+      </div>
+      <div class="drawer-item" data-section="reference" onclick="switchSection('reference',this)">
+        <span class="di-icon">◻</span> Reference
+        <span class="di-badge" id="db-reference">0</span>
+      </div>
+      <div class="drawer-divider"></div>
+      <div class="drawer-footer">
+        <button class="drawer-footer-btn" onclick="openSettings()">⚙ Settings &amp; Sync</button>
+        <button class="drawer-footer-btn" onclick="exportData()">↓ Export backup</button>
+        <button class="drawer-footer-btn" onclick="importData()">↑ Import backup</button>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div id="content">
+      <div id="section-control" class="section active">
+        <div class="section-header">
+          <div class="section-title">Control</div>
+          <button class="add-btn" onclick="addManualTask()">+ Task</button>
+        </div>
+        <div id="controlList"></div>
+      </div>
+      <div id="section-projects" class="section">
+        <div class="section-header">
+          <div class="section-title">Projects</div>
+          <button class="add-btn" onclick="addProject()">+ Project</button>
+        </div>
+        <div id="projectsList"></div>
+      </div>
+      <div id="section-reference" class="section">
+        <div class="section-header">
+          <div class="section-title">Reference</div>
+          <button class="add-btn" onclick="addRefItem()">+ Item</button>
+        </div>
+        <div id="referenceList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsOverlay" onclick="overlayClick(event)">
+  <div id="settingsModal">
+    <h2>⚙ Settings &amp; Dropbox Sync</h2>
+    <div class="settings-desc">
+      Your data syncs to a file called <code>tasks.json</code> inside your Dropbox app folder.<br><br>
+      To get a token: go to <a href="https://dropbox.com/developers" target="_blank">dropbox.com/developers</a>
+      → App Console → your app → Settings → Generate access token.
+    </div>
+    <div class="settings-field">
+      <label>Dropbox Access Token</label>
+      <input type="password" id="tokenInput" class="settings-input" placeholder="sl.u.ABcd…" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="settingsStatus" class="settings-status"></div>
+    <div class="settings-row">
+      <button class="settings-btn primary" onclick="saveToken()">Save &amp; Connect</button>
+      <button class="settings-btn" onclick="testConnection()">Test Connection</button>
+      <button class="settings-btn danger" onclick="clearToken()">Clear Token</button>
+    </div>
+    <div class="settings-row">
+      <button class="settings-btn" onclick="closeSettings()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  DATA MODEL
+// ══════════════════════════════════════════════════════
+let data = { control:[], projects:[], reference:[] };
+let uid = ()=> Math.random().toString(36).slice(2,9) + Date.now().toString(36);
+const STATUSES = ["Next","Today","Waiting","Done"];
+const BADGE_CLS = {Next:"badge-Next",Today:"badge-Today",Waiting:"badge-Waiting",Done:"badge-Done"};
+function nextStatus(cur){ return STATUSES[(STATUSES.indexOf(cur)+1)%STATUSES.length]; }
+
+// ══════════════════════════════════════════════════════
+//  DROPBOX SYNC
+// ══════════════════════════════════════════════════════
+const DBX_PATH = "/tasks.json";
+let dbxToken = null;
+let syncTimer = null;
+let pendingSync = false;
+
+function getToken(){ return dbxToken || localStorage.getItem("dbx_token") || null; }
+
+function setSyncStatus(state){
+  let dot = document.getElementById("syncDot");
+  dot.className = state; // synced | syncing | error | offline
+}
+
+async function loadFromDropbox(){
+  let token = getToken();
+  if(!token){ setSyncStatus("offline"); return false; }
+  setSyncStatus("syncing");
+  try {
+    let res = await fetch("https://content.dropboxapi.com/2/files/download", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Dropbox-API-Arg": JSON.stringify({path: DBX_PATH})
+      }
+    });
+    if(res.status === 409){ // file doesn't exist yet — that's fine
+      setSyncStatus("synced");
+      return true;
+    }
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    let json = await res.json();
+    data = json;
+    localStorage.setItem("tasks_v2", JSON.stringify(data));
+    setSyncStatus("synced");
+    return true;
+  } catch(e){
+    console.warn("Dropbox load failed:", e);
+    setSyncStatus("error");
+    return false;
+  }
+}
+
+async function saveToDropbox(){
+  let token = getToken();
+  if(!token){ setSyncStatus("offline"); return false; }
+  setSyncStatus("syncing");
+  try {
+    let res = await fetch("https://content.dropboxapi.com/2/files/upload", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Dropbox-API-Arg": JSON.stringify({
+          path: DBX_PATH,
+          mode: "overwrite",
+          autorename: false,
+          mute: true
+        }),
+        "Content-Type": "application/octet-stream"
+      },
+      body: JSON.stringify(data, null, 2)
+    });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    setSyncStatus("synced");
+    return true;
+  } catch(e){
+    console.warn("Dropbox save failed:", e);
+    setSyncStatus("error");
+    return false;
+  }
+}
+
+function scheduleSync(){
+  // always save to localStorage immediately
+  localStorage.setItem("tasks_v2", JSON.stringify(data));
+  // debounce Dropbox write — 2s after last change
+  clearTimeout(syncTimer);
+  pendingSync = true;
+  setSyncStatus("syncing");
+  syncTimer = setTimeout(async ()=>{
+    await saveToDropbox();
+    pendingSync = false;
+  }, 2000);
+}
+
+async function syncNow(){
+  clearTimeout(syncTimer);
+  let ok = await saveToDropbox();
+  if(!ok) showSettingsStatus("err", "Sync failed — check your token in Settings.");
+}
+
+// ══════════════════════════════════════════════════════
+//  LOCAL SAVE / LOAD
+// ══════════════════════════════════════════════════════
+function loadLocal(){
+  try {
+    let raw = localStorage.getItem("tasks_v2");
+    if(raw) data = JSON.parse(raw);
+  } catch(e){}
+  if(!data.projects.length && !data.control.length){
+    data.projects = [{
+      id:uid(), name:"TILE INSTALLATION", status:"Next", done:false, collapsed:false,
+      subtasks:[{id:uid(), name:"Place thinset", status:"Next", done:false}]
+    }];
+    data.reference = [{id:uid(), item:"Water system", notes:"Quote stored"}];
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  SETTINGS MODAL
+// ══════════════════════════════════════════════════════
+function openSettings(){
+  let token = getToken();
+  document.getElementById("tokenInput").value = token || "";
+  document.getElementById("settingsOverlay").classList.add("open");
+  closeDrawer();
+}
+function closeSettings(){ document.getElementById("settingsOverlay").classList.remove("open"); }
+function overlayClick(e){ if(e.target.id==="settingsOverlay") closeSettings(); }
+
+function showSettingsStatus(type, msg){
+  let el = document.getElementById("settingsStatus");
+  el.className = "settings-status show " + type;
+  el.innerText = msg;
+}
+
+function saveToken(){
+  let val = document.getElementById("tokenInput").value.trim();
+  if(!val){ showSettingsStatus("err","Please enter a token."); return; }
+  localStorage.setItem("dbx_token", val);
+  dbxToken = val;
+  showSettingsStatus("ok","Token saved. Testing connection…");
+  testConnection();
+}
+
+async function testConnection(){
+  let token = document.getElementById("tokenInput").value.trim() || getToken();
+  if(!token){ showSettingsStatus("err","No token — enter one above."); return; }
+  showSettingsStatus("ok","Connecting…");
+  try {
+    let res = await fetch("https://api.dropboxapi.com/2/users/get_current_account", {
+      method:"POST",
+      headers:{ "Authorization":"Bearer " + token, "Content-Type":"application/json" },
+      body:"null"
+    });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    let acc = await res.json();
+    showSettingsStatus("ok", "✓ Connected as " + (acc.name?.display_name || acc.email || "unknown"));
+    setSyncStatus("synced");
+  } catch(e){
+    showSettingsStatus("err","✗ Connection failed — token may be invalid or expired.");
+    setSyncStatus("error");
+  }
+}
+
+function clearToken(){
+  localStorage.removeItem("dbx_token");
+  dbxToken = null;
+  document.getElementById("tokenInput").value = "";
+  showSettingsStatus("ok","Token cleared. App will use local storage only.");
+  setSyncStatus("offline");
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════
+function render(){
+  renderControl(); renderProjects(); renderReference(); renderToday(); updateDrawerBadges();
+}
+
+function renderControl(){
+  let list = document.getElementById("controlList");
+  let rows = [];
+  data.control.forEach(t=>rows.push({...t,_src:"Manual"}));
+  data.projects.forEach(p=>rows.push({id:p.id,name:p.name,status:p.status,done:p.done,_src:"Project",_projId:p.id}));
+  if(!rows.length){ list.innerHTML=`<div class="empty-state"><div class="em-icon">◈</div>No tasks yet</div>`; return; }
+  list.innerHTML="";
+  rows.forEach(t=>{
+    let el=document.createElement("div");
+    el.className="task-row control-row"+(t.done?" done-row":"")+(t.status==="Today"?" today-hl":"");
+    if(t.done&&!showDone()) el.classList.add("hidden-done");
+    el.dataset.id=t.id; el.dataset.src=t._src;
+    el.innerHTML=`
+      <div class="cell-drag" data-drag="1">⠿</div>
+      <div class="cell-check">
+        <input type="checkbox" class="task-check" id="chk-c-${t.id}" ${t.done?"checked":""}
+          onchange="toggleDoneControl('${t.id}','${t._src}',this)">
+        <label class="check-visual" for="chk-c-${t.id}"></label>
+      </div>
+      <div class="cell-name">
+        <div class="task-name" contenteditable="${t._src==='Manual'}"
+          data-placeholder="Task name"
+          onblur="updateControlName('${t.id}',this)"
+          ${t._src==="Project"?`onclick="switchSection('projects',document.querySelector('[data-section=projects]'))"`:""
+        }>${escHtml(t.name)}</div>
+      </div>
+      <div class="cell-source">${t._src}</div>
+      <div class="cell-status">
+        <span class="badge ${BADGE_CLS[t.status]||'badge-Next'}"
+          onclick="cycleControlStatus('${t.id}','${t._src}')">${t.status}</span>
+      </div>
+      <div class="cell-del">
+        <button class="del-btn" onclick="deleteControl('${t.id}','${t._src}')">✕</button>
+      </div>`;
+    list.appendChild(el);
+  });
+  setupDrag(list,"control");
+}
+
+function renderProjects(){
+  let list=document.getElementById("projectsList");
+  if(!data.projects.length){ list.innerHTML=`<div class="empty-state"><div class="em-icon">⬡</div>No projects yet</div>`; return; }
+  list.innerHTML="";
+  data.projects.forEach(p=>{
+    let grp=document.createElement("div");
+    grp.className="project-group"; grp.dataset.pid=p.id;
+    let hasSubs=p.subtasks&&p.subtasks.length>0;
+    let hdr=document.createElement("div");
+    hdr.className="project-header"+(!hasSubs?" solo":"")+(p.done?" done-row":"");
+    if(p.done&&!showDone()) hdr.classList.add("hidden-done");
+    hdr.dataset.id=p.id;
+    hdr.innerHTML=`
+      <div class="cell-drag" data-drag="1">⠿</div>
+      <div class="cell-check">
+        <input type="checkbox" class="task-check" id="chk-p-${p.id}" ${p.done?"checked":""}
+          onchange="toggleDoneProject('${p.id}',this)">
+        <label class="check-visual" for="chk-p-${p.id}"></label>
+      </div>
+      <div class="cell-proj-name">
+        <button class="collapse-btn ${p.collapsed?'collapsed':''}" onclick="toggleCollapse('${p.id}')">▼</button>
+        <div class="proj-name-text" contenteditable="true" data-placeholder="Project name"
+          onblur="updateProjectName('${p.id}',this)">${escHtml(p.name)}</div>
+        <button class="add-sub-btn" onclick="addSubtask('${p.id}')">+ subtask</button>
+      </div>
+      <div class="cell-status">
+        <span class="badge ${BADGE_CLS[p.status]||'badge-Next'}"
+          onclick="cycleProjectStatus('${p.id}')">${p.status}</span>
+      </div>
+      <div class="cell-del">
+        <button class="del-btn" onclick="deleteProject('${p.id}')">✕</button>
+      </div>`;
+    grp.appendChild(hdr);
+    if(hasSubs){
+      let subsDiv=document.createElement("div");
+      subsDiv.className="project-subtasks"+(p.collapsed?" collapsed":"");
+      subsDiv.dataset.pid=p.id;
+      p.subtasks.forEach(s=>{
+        let sel=document.createElement("div");
+        sel.className="task-row subtask-row"+(s.done?" done-row":"");
+        if(s.done&&!showDone()) sel.classList.add("hidden-done");
+        sel.dataset.id=s.id; sel.dataset.pid=p.id;
+        sel.innerHTML=`
+          <div class="cell-drag" data-drag="1">⠿</div>
+          <div class="cell-check">
+            <input type="checkbox" class="task-check" id="chk-s-${s.id}" ${s.done?"checked":""}
+              onchange="toggleDoneSubtask('${p.id}','${s.id}',this)">
+            <label class="check-visual" for="chk-s-${s.id}"></label>
+          </div>
+          <div class="cell-name">
+            <div class="task-name" contenteditable="true" data-placeholder="Subtask name"
+              onblur="updateSubtaskName('${p.id}','${s.id}',this)">${escHtml(s.name)}</div>
+          </div>
+          <div class="cell-status">
+            <span class="badge ${BADGE_CLS[s.status]||'badge-Next'}"
+              onclick="cycleSubtaskStatus('${p.id}','${s.id}')">${s.status}</span>
+          </div>
+          <div class="cell-del">
+            <button class="del-btn" onclick="deleteSubtask('${p.id}','${s.id}')">✕</button>
+          </div>`;
+        subsDiv.appendChild(sel);
+      });
+      setupDrag(subsDiv,"subtasks",p.id);
+      grp.appendChild(subsDiv);
+    }
+    list.appendChild(grp);
+  });
+  setupDrag(list,"projects");
+}
+
+function renderReference(){
+  let list=document.getElementById("referenceList");
+  if(!data.reference.length){ list.innerHTML=`<div class="empty-state"><div class="em-icon">◻</div>No reference items</div>`; return; }
+  list.innerHTML="";
+  data.reference.forEach(r=>{
+    let el=document.createElement("div");
+    el.className="ref-row"; el.dataset.id=r.id;
+    el.innerHTML=`
+      <div class="cell-drag" data-drag="1">⠿</div>
+      <div class="ref-cell" contenteditable="true" data-placeholder="Item"
+        onblur="updateRefItem('${r.id}','item',this)">${escHtml(r.item)}</div>
+      <div class="ref-cell notes" contenteditable="true" data-placeholder="Notes"
+        onblur="updateRefItem('${r.id}','notes',this)">${escHtml(r.notes)}</div>
+      <div class="cell-del"><button class="del-btn" onclick="deleteRef('${r.id}')">✕</button></div>`;
+    list.appendChild(el);
+  });
+  setupDrag(list,"reference");
+}
+
+function renderToday(){
+  let items=[];
+  data.control.forEach(t=>{ if(t.status==="Today"&&!t.done) items.push(t.name); });
+  data.projects.forEach(p=>{ if(p.status==="Today"&&!p.done) items.push(p.name); });
+  document.getElementById("todayCount").innerText=items.length;
+  let list=document.getElementById("todayList"); list.innerHTML="";
+  items.forEach(name=>{
+    let chip=document.createElement("div");
+    chip.className="today-chip"; chip.innerText=name;
+    chip.onclick=()=>switchSection("control",document.querySelector("[data-section=control]"));
+    list.appendChild(chip);
+  });
+}
+
+function updateDrawerBadges(){
+  document.getElementById("db-control").innerText=data.control.filter(t=>!t.done).length+data.projects.filter(p=>!p.done).length;
+  document.getElementById("db-projects").innerText=data.projects.length;
+  document.getElementById("db-reference").innerText=data.reference.length;
+}
+
+// ══════════════════════════════════════════════════════
+//  ACTIONS — CONTROL
+// ══════════════════════════════════════════════════════
+function addManualTask(){
+  let t={id:uid(),name:"New Task",status:"Next",done:false};
+  data.control.push(t); save_render(); focusNewItem("controlList");
+}
+function updateControlName(id,el){
+  let t=data.control.find(x=>x.id===id);
+  if(t) t.name=el.innerText.trim()||t.name;
+  scheduleSync(); renderToday(); updateDrawerBadges();
+}
+function cycleControlStatus(id,src){
+  if(src==="Project"){ let p=data.projects.find(x=>x.id===id); if(p){p.status=nextStatus(p.status);if(p.status==="Done")p.done=true;if(p.status==="Next")p.done=false;} }
+  else { let t=data.control.find(x=>x.id===id); if(t){t.status=nextStatus(t.status);if(t.status==="Done")t.done=true;if(t.status==="Next")t.done=false;} }
+  save_render();
+}
+function toggleDoneControl(id,src,chk){
+  if(src==="Project"){ let p=data.projects.find(x=>x.id===id); if(p){p.done=chk.checked;p.status=chk.checked?"Done":"Next";} }
+  else { let t=data.control.find(x=>x.id===id); if(t){t.done=chk.checked;t.status=chk.checked?"Done":"Next";} }
+  save_render();
+}
+function deleteControl(id,src){
+  if(src==="Project") data.projects=data.projects.filter(p=>p.id!==id);
+  else data.control=data.control.filter(t=>t.id!==id);
+  save_render();
+}
+
+// ══════════════════════════════════════════════════════
+//  ACTIONS — PROJECTS
+// ══════════════════════════════════════════════════════
+function addProject(){
+  let p={id:uid(),name:"New Project",status:"Next",done:false,collapsed:false,subtasks:[{id:uid(),name:"New Subtask",status:"Next",done:false}]};
+  data.projects.push(p); save_render();
+  setTimeout(()=>{ let el=document.querySelector(`[data-pid="${p.id}"] .proj-name-text`); if(el){el.focus();selectAll(el);} },50);
+}
+function addSubtask(pid){
+  let p=data.projects.find(x=>x.id===pid); if(!p) return;
+  let s={id:uid(),name:"New Subtask",status:"Next",done:false};
+  p.subtasks.push(s); p.collapsed=false; save_render();
+  setTimeout(()=>{
+    let subs=document.querySelector(`.project-subtasks[data-pid="${pid}"]`);
+    if(subs){ let el=subs.lastElementChild&&subs.lastElementChild.querySelector(".task-name"); if(el){el.focus();selectAll(el);} }
+  },50);
+}
+function updateProjectName(pid,el){
+  let p=data.projects.find(x=>x.id===pid);
+  if(p) p.name=el.innerText.trim()||p.name;
+  scheduleSync(); renderControl(); renderToday(); updateDrawerBadges();
+}
+function cycleProjectStatus(pid){
+  let p=data.projects.find(x=>x.id===pid); if(!p) return;
+  p.status=nextStatus(p.status); if(p.status==="Done")p.done=true; if(p.status==="Next")p.done=false;
+  save_render();
+}
+function toggleDoneProject(pid,chk){
+  let p=data.projects.find(x=>x.id===pid); if(!p) return;
+  p.done=chk.checked; p.status=chk.checked?"Done":"Next"; save_render();
+}
+function toggleCollapse(pid){
+  let p=data.projects.find(x=>x.id===pid); if(!p) return;
+  p.collapsed=!p.collapsed; save_render();
+}
+function deleteProject(pid){ data.projects=data.projects.filter(p=>p.id!==pid); save_render(); }
+function updateSubtaskName(pid,sid,el){
+  let p=data.projects.find(x=>x.id===pid); let s=p&&p.subtasks.find(x=>x.id===sid);
+  if(s) s.name=el.innerText.trim()||s.name; scheduleSync();
+}
+function cycleSubtaskStatus(pid,sid){
+  let p=data.projects.find(x=>x.id===pid); let s=p&&p.subtasks.find(x=>x.id===sid); if(!s) return;
+  s.status=nextStatus(s.status); if(s.status==="Done")s.done=true; if(s.status==="Next")s.done=false;
+  save_render();
+}
+function toggleDoneSubtask(pid,sid,chk){
+  let p=data.projects.find(x=>x.id===pid); let s=p&&p.subtasks.find(x=>x.id===sid); if(!s) return;
+  s.done=chk.checked; s.status=chk.checked?"Done":"Next"; save_render();
+}
+function deleteSubtask(pid,sid){
+  let p=data.projects.find(x=>x.id===pid);
+  if(p) p.subtasks=p.subtasks.filter(s=>s.id!==sid); save_render();
+}
+
+// ══════════════════════════════════════════════════════
+//  ACTIONS — REFERENCE
+// ══════════════════════════════════════════════════════
+function addRefItem(){ data.reference.push({id:uid(),item:"New Item",notes:""}); save_render(); focusNewItem("referenceList"); }
+function updateRefItem(id,field,el){ let r=data.reference.find(x=>x.id===id); if(r) r[field]=el.innerText.trim(); scheduleSync(); }
+function deleteRef(id){ data.reference=data.reference.filter(r=>r.id!==id); save_render(); }
+
+// ══════════════════════════════════════════════════════
+//  SHOW DONE
+// ══════════════════════════════════════════════════════
+function showDone(){ return document.getElementById("showDoneChk").checked; }
+function toggleShowDone(){ render(); scheduleSync(); }
+
+// ══════════════════════════════════════════════════════
+//  DRAG TO REORDER
+// ══════════════════════════════════════════════════════
+let dragEl=null,dragType=null,dragPid=null;
+function setupDrag(container,type,pid){
+  container.addEventListener("mousedown",e=>{
+    if(!e.target.closest("[data-drag]")) return;
+    let row=e.target.closest(".task-row,.project-header,.ref-row,.project-group");
+    if(!row) return;
+    dragEl=row; dragType=type; dragPid=pid||null;
+    row.setAttribute("draggable","true");
+  });
+  container.addEventListener("dragstart",e=>{ if(!dragEl) return; dragEl.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; });
+  container.addEventListener("dragend",()=>{
+    if(dragEl){ dragEl.classList.remove("dragging"); dragEl.removeAttribute("draggable"); }
+    container.querySelectorAll(".drag-over").forEach(r=>r.classList.remove("drag-over"));
+    dragEl=null; saveDragOrder(container,type,pid); scheduleSync();
+  });
+  container.addEventListener("dragover",e=>{
+    e.preventDefault();
+    let target=e.target.closest(".task-row,.project-header,.ref-row,.project-group");
+    if(!target||target===dragEl) return;
+    container.querySelectorAll(".drag-over").forEach(r=>r.classList.remove("drag-over"));
+    target.classList.add("drag-over");
+    let rect=target.getBoundingClientRect();
+    container.insertBefore(dragEl, e.clientY<rect.top+rect.height/2 ? target : target.nextSibling);
+  });
+}
+function saveDragOrder(container,type,pid){
+  if(type==="control"){
+    let ids=Array.from(container.querySelectorAll(".task-row[data-src='Manual']")).map(r=>r.dataset.id);
+    data.control=ids.map(id=>data.control.find(x=>x.id===id)).filter(Boolean);
+  } else if(type==="projects"){
+    let ids=Array.from(container.querySelectorAll(":scope > .project-group")).map(r=>r.dataset.pid);
+    data.projects=ids.map(id=>data.projects.find(x=>x.id===id)).filter(Boolean);
+  } else if(type==="subtasks"&&pid){
+    let p=data.projects.find(x=>x.id===pid); if(!p) return;
+    let ids=Array.from(container.querySelectorAll(".subtask-row")).map(r=>r.dataset.id);
+    p.subtasks=ids.map(id=>p.subtasks.find(x=>x.id===id)).filter(Boolean);
+  } else if(type==="reference"){
+    let ids=Array.from(container.querySelectorAll(".ref-row")).map(r=>r.dataset.id);
+    data.reference=ids.map(id=>data.reference.find(x=>x.id===id)).filter(Boolean);
+  }
+  render();
+}
+
+// ══════════════════════════════════════════════════════
+//  NAV
+// ══════════════════════════════════════════════════════
+function toggleDrawer(){ document.body.classList.toggle("drawer-open"); }
+function closeDrawer(){ document.body.classList.remove("drawer-open"); }
+function switchSection(id,el){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".drawer-item").forEach(d=>d.classList.remove("active"));
+  document.getElementById("section-"+id).classList.add("active");
+  if(el) el.classList.add("active");
+  document.getElementById("header-title").innerText=id.charAt(0).toUpperCase()+id.slice(1);
+  closeDrawer();
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT / IMPORT
+// ══════════════════════════════════════════════════════
+function exportData(){
+  let blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="tasks_backup.json"; a.click();
+}
+function importData(){
+  let input=document.createElement("input"); input.type="file"; input.accept=".json";
+  input.onchange=e=>{
+    let reader=new FileReader();
+    reader.onload=()=>{ try{ data=JSON.parse(reader.result); scheduleSync(); render(); }catch(err){ alert("Invalid backup file"); } };
+    reader.readAsText(e.target.files[0]);
+  };
+  input.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════
+function escHtml(str){ if(!str) return ""; return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function selectAll(el){ let r=document.createRange(); r.selectNodeContents(el); let s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+function focusNewItem(listId){ setTimeout(()=>{ let list=document.getElementById(listId); let last=list.lastElementChild; let el=last&&last.querySelector("[contenteditable]"); if(el){el.focus();selectAll(el);} },50); }
+function save_render(){ scheduleSync(); render(); }
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+window.onload = async ()=>{
+  loadLocal();
+  render();
+  // try to load fresh data from Dropbox
+  let loaded = await loadFromDropbox();
+  if(loaded) render();
+  // prompt for token if none set
+  if(!getToken()){
+    setTimeout(()=> openSettings(), 800);
+  }
+};
+</script>
+</body>
+</html>
