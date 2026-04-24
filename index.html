@@ -607,6 +607,7 @@ body.mode-work .badge-Today { background:rgba(5,150,105,0.08); color:#059669; bo
     </div>
     <div class="s-row">
       <button class="s-btn danger" onclick="clearToken()">Clear Token</button>
+      <button class="s-btn danger" onclick="clearLocalAndReload()">↺ Force reload from Dropbox</button>
       <button class="s-btn" onclick="closeSettings()">Close</button>
     </div>
   </div>
@@ -814,6 +815,27 @@ function clearToken(){
   localStorage.removeItem('dbx_token'); dbxToken = null;
   document.getElementById('tokenInput').value = '';
   showSettingsStatus('ok','Token cleared.'); setSyncStatus('offline');
+}
+
+async function clearLocalAndReload(){
+  if(!getToken()){ showSettingsStatus('err','No token set — cannot reload from Dropbox.'); return; }
+  showSettingsStatus('ok','Clearing local cache and fetching from Dropbox…');
+  // Wipe local storage entirely (except the token)
+  const token = getToken();
+  localStorage.clear();
+  localStorage.setItem('dbx_token', token);
+  // Reset in-memory data
+  data = { home: emptyMode(), work: emptyMode(), _v: 0 };
+  // Pull fresh from Dropbox
+  const remote = await loadFromDropbox();
+  if(remote){
+    data = remote;
+    localStorage.setItem('tasks_v3', JSON.stringify(data));
+    render();
+    showSettingsStatus('ok','✓ Reloaded from Dropbox successfully.');
+  } else {
+    showSettingsStatus('err','✗ Could not reach Dropbox — check your token and connection.');
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -1341,6 +1363,8 @@ function save_render(){ scheduleSync(); render(); }
 //  INIT  —  new device always trusts Dropbox over local
 // ══════════════════════════════════════════════
 window.onload = async ()=>{
+  console.log('[Tasks] App version: 2025-dropbox-authoritative. Local _v:',
+    JSON.parse(localStorage.getItem('tasks_v3')||'{}')._v || 'none');
   // Step 1: Load local data so there's something to show instantly (fast first paint)
   loadLocal();
   render();
